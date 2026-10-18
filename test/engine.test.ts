@@ -4,9 +4,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { Control } from "../src/control.js";
-import { Engine } from "../src/engine.js";
+import { Engine, TURN_SETTLE_MS } from "../src/engine.js";
 import { Store, fingerprint } from "../src/store.js";
-import { BridgeError, type Event, type Input } from "../src/contracts.js";
+import {
+  BridgeError,
+  type Event,
+  type Input,
+  type Session,
+} from "../src/contracts.js";
 class FakeControl extends Control {
   calls: Array<{ route: string; body: Record<string, unknown> | undefined }> =
     [];
@@ -134,6 +139,22 @@ async function fixture() {
     },
   };
 }
+function settle(s: Session, opId: string, engine: Engine, store: Store) {
+  const operation = store.operation(opId)!;
+  assert(
+    operation.pendingEnd,
+    "Native terminal is pending during the continuation grace window",
+  );
+  (
+    engine as unknown as {
+      settlePending(s: Session, o: typeof operation, now: number): void;
+    }
+  ).settlePending(
+    store.session(s.id)!,
+    operation,
+    operation.pendingEnd.observedAt + TURN_SETTLE_MS + 1,
+  );
+}
 test("new session reserves identity; first prompt binds workspace and policy before durable outbox admission", async () => {
   const f = await fixture();
   try {
@@ -197,6 +218,7 @@ test("idempotent prompt ID prevents a duplicate after completion and across adap
       turnId: "exact-turn",
       outcome: "completed",
     });
+    settle(s, op.id, f.engine, f.store);
     assert.equal(f.store.operation(op.id)?.phase, "complete");
     const restarted = new Engine(f.store, f.control);
     restarted.watch = () => {};
@@ -361,6 +383,7 @@ test("completion requires delivery receipt and exact turn, including late user-m
       turnId: "c0ffee00-0000-4000-8000-000000000000",
     });
     assert.equal(f.store.operation(o.id)?.turnId, "actual");
+    settle(s, o.id, f.engine, f.store);
     assert.equal(f.store.operation(o.id)?.phase, "complete");
   } finally {
     await f.close();
@@ -572,6 +595,7 @@ test("stock vocabulary: a confirmed message links the named turn and settles on 
       turnId: "g-stock-1",
       outcome: "completed",
     });
+    settle(s, o.id, f.engine, f.store);
     assert.equal(f.store.operation(o.id)?.phase, "complete");
     assert.equal(f.store.session(s.id)?.activeInput, null);
     assert.equal(
@@ -693,6 +717,7 @@ test("a tool handout carries its own turn: confirmation under the actual turn se
       turnId: "g-reoffer",
       outcome: "completed",
     });
+    settle(s, o.id, f.engine, f.store);
     assert.equal(f.store.operation(o.id)?.phase, "complete");
     assert.equal(f.store.session(s.id)?.activeInput, null);
   } finally {
@@ -735,6 +760,7 @@ test("a page-side message marker never masquerades as a turn", async () => {
       turnId: "g-1n8rxw61e4mdo4-0-2",
       outcome: "completed",
     });
+    settle(s, o.id, f.engine, f.store);
     assert.equal(f.store.operation(o.id)?.phase, "complete");
     assert.equal(f.store.session(s.id)?.activeInput, null);
   } finally {
@@ -780,6 +806,7 @@ test("reconciliation drops a persisted page marker and settles the recorded turn
       restarted.session(s.id),
       f.store.operation(o.id)!,
     );
+    settle(s, o.id, restarted, f.store);
     const settled = f.store.operation(o.id)!;
     assert.equal(settled.turnId, "g-1n8rxw61e4mdo4-0-2");
     assert.equal(settled.phase, "complete");
@@ -829,6 +856,7 @@ test("post-restart reconciliation settles a completed stock turn from stored rec
     assert.equal(replay.phase, "admitted");
     assert.equal(replay.turnId, null);
     await restarted.reconcile(restarted.session(s.id), replay);
+    settle(s, o.id, restarted, f.store);
     const settled = f.store.operation(o.id)!;
     assert.equal(settled.phase, "complete");
     assert.equal(settled.turnId, "g-stuck-1");
@@ -956,6 +984,7 @@ test("CoS automatic continuation keeps the same T3 prompt open across interrupte
       turnId: "turn-resumed",
       outcome: "completed",
     });
+    settle(session, op.id, f.engine, f.store);
     assert.equal(f.store.operation(op.id)?.phase, "complete");
     assert.equal(f.store.session(session.id)?.activeInput, null);
     assert.equal(
@@ -996,6 +1025,7 @@ test("a genuinely interrupted CoS turn without an automatic continuation still e
       turnId: "turn-stopped",
       outcome: "interrupted",
     });
+    settle(session, op.id, f.engine, f.store);
     assert.equal(f.store.operation(op.id)?.phase, "cancelled");
     assert.equal(f.store.session(session.id)?.activeInput, null);
   } finally {
@@ -1033,8 +1063,9 @@ test("a user repeating the continuation sentence as their own instruction is not
       turnId: "manual",
       outcome: "interrupted",
     });
+    settle(session, op.id, f.engine, f.store);
     assert.equal(f.store.operation(op.id)?.phase, "cancelled");
-    assert.equal(f.store.operation(op.id)?.awaitingContinuation, undefined);
+    assert.notEqual(f.store.operation(op.id)?.awaitingContinuation, true);
   } finally {
     await f.close();
   }

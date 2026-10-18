@@ -12,7 +12,7 @@ import {
   validateLegacyIdentity,
 } from "../src/compatibility.js";
 import { Control } from "../src/control.js";
-import { Engine } from "../src/engine.js";
+import { Engine, TURN_SETTLE_MS } from "../src/engine.js";
 import { Store } from "../src/store.js";
 import { Adapter, apps, type Gateway } from "../src/adapter.js";
 import * as v1 from "@agentclientprotocol/sdk";
@@ -227,7 +227,9 @@ test("ACP stock mode advertises staged image support while preserving CoS-only p
   }
 });
 async function profile() {
-  const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "cos-existing-test-")));
+  const directory = await realpath(
+    await mkdtemp(path.join(os.tmpdir(), "cos-existing-test-")),
+  );
   const cwd = path.join(directory, "project");
   await mkdir(cwd);
   await mkdir(path.join(directory, "state"));
@@ -310,6 +312,7 @@ class LegacyControl extends Control {
         } satisfies Input,
       } as T;
     }
+    if (route.includes("/events?")) return { events: [], nextFrom: 0 } as T;
     if (route === "/v1/inputs?limit=500")
       return { inputs: [], total: 700 } as T;
     if (route === "/v1/models") {
@@ -496,6 +499,20 @@ test("existing-install text admission uses stock fields, current selection, expl
       outcome: "completed",
     });
     await engine.reconcile(current, store.operation(operation.id)!);
+    const pending = store.operation(operation.id)!;
+    assert(
+      pending.pendingEnd,
+      "native completion is held for the durable continuation window",
+    );
+    (
+      engine as unknown as {
+        settlePending(s: typeof current, o: typeof pending, now: number): void;
+      }
+    ).settlePending(
+      store.session(s.id)!,
+      pending,
+      pending.pendingEnd.observedAt + TURN_SETTLE_MS + 1,
+    );
     assert.equal(
       store.operation(operation.id)?.phase,
       "complete",

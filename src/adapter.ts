@@ -211,7 +211,14 @@ export class Adapter {
                 ? projected.message(e, this.translator(id))
                 : await this.eventUpdates(id, s, e);
             for (const u of updates) await this.update(client, id, u);
-            if (projected && e.kind === "turn_end")
+            if (
+              projected &&
+              e.kind === "turn_end" &&
+              (e.outcome === "interrupted" ||
+                (e.outcome === "completed" &&
+                  state.operation?.phase === "complete" &&
+                  state.operation.turnId === e.turnId))
+            )
               for (const u of projected.end(e, this.translator(id)))
                 await this.update(client, id, u);
           }
@@ -989,7 +996,14 @@ export class Adapter {
               ? finalAnswers.message(event, this.translator(id))
               : await this.eventUpdates(id, s, event);
           for (const update of updates) await this.update(client, id, update);
-          if (this.clientName === "t3-code" && event.kind === "turn_end")
+          if (
+            this.clientName === "t3-code" &&
+            event.kind === "turn_end" &&
+            (event.outcome === "interrupted" ||
+              (event.outcome === "completed" &&
+                state.operation?.phase === "complete" &&
+                state.operation.turnId === event.turnId))
+          )
             for (const update of finalAnswers.end(event, this.translator(id)))
               await this.update(client, id, update);
         }

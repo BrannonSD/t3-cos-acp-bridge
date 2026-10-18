@@ -82,6 +82,13 @@ export interface Operation {
   awaitingContinuation?: boolean;
   /** Exact stream-owned turns admitted by this input, including continuations. */
   continuationTurnIds?: string[];
+  /** Short durable settlement window for native completions before automatic continuation. */
+  pendingEnd?: {
+    seq: number;
+    turnId: string;
+    outcome: string;
+    observedAt: number;
+  };
 }
 export interface Models {
   state: string;

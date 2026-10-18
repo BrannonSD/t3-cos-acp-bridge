@@ -25,6 +25,8 @@ export const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 /** Stock and integration CoS cap one events page at 100 rows (MAX_EVENTS). */
 const EVENT_PAGE = 100;
+/** CoS may queue an automatic follow-up just after native completed/interrupted. */
+export const TURN_SETTLE_MS = 5_000;
 const encode = encodeURIComponent;
 const normalized = (root: string) =>
   path
@@ -485,6 +487,18 @@ export class Engine {
           "input_not_found",
           "The input is outside CoS's retained outbox window; absence is not proof of non-delivery.",
         );
+      // A fresh SSE event may have advanced the input while this network call
+      // was in flight. Merge current durable identity before any write.
+      const beforeAcceptSession = this.store.session(s.id);
+      const beforeAcceptOperation = this.store.operation(o.id);
+      if (
+        !beforeAcceptSession ||
+        beforeAcceptSession.activeInput !== o.id ||
+        !beforeAcceptOperation
+      )
+        return;
+      Object.assign(s, beforeAcceptSession);
+      Object.assign(o, beforeAcceptOperation);
       this.acceptInput(s, o, input);
       if (o.phase === "uncertain" && input.delivery !== "unconfirmed")
         o.phase = "admitted";
@@ -495,10 +509,24 @@ export class Engine {
         error.code === "input_not_found" &&
         o.phase === "prepared"
       ) {
-        o.phase = "uncertain";
-        this.store.saveOperation(o);
+        const latestS = this.store.session(s.id);
+        const latestO = this.store.operation(o.id);
+        if (latestS?.activeInput === o.id && latestO?.phase === "prepared") {
+          latestO.phase = "uncertain";
+          Object.assign(o, latestO);
+          this.store.saveOperation(o);
+        }
       } /* Absence is not proof that an interrupted write was never admitted. */
     }
+    // Reconciliation performs network I/O while the live CoS SSE watcher may
+    // advance this exact input. Never persist an older session/operation
+    // snapshot after that asynchronous gap.
+    const liveSession = this.store.session(s.id);
+    const liveOperation = this.store.operation(o.id);
+    if (!liveSession || liveSession.activeInput !== o.id || !liveOperation)
+      return;
+    Object.assign(s, liveSession);
+    Object.assign(o, liveOperation);
     // Durable event receipts can prove completion after the bounded stock
     // outbox window no longer includes this input; they never cause resends.
     const user = this.store.inputEvent(s.id, o.id);
@@ -513,13 +541,30 @@ export class Engine {
       const end = this.store.turnEnd(s.id, o.turnId, o.baseline);
       if (end) this.observe(s, o, end);
     }
+    if (o.pendingEnd) {
+      await this.catchUp(s);
+      const latestSession = this.store.session(s.id);
+      const latestOperation = this.store.operation(o.id);
+      if (latestSession?.activeInput === o.id && latestOperation?.pendingEnd) {
+        Object.assign(s, latestSession);
+        Object.assign(o, latestOperation);
+        this.settlePending(s, o);
+      }
+    }
   }
   private observe(s: Session, o: Operation, e: Event) {
     if (e.seq <= o.baseline) return;
     // CoS generates a new user message during long tasks, then interrupts the
     // older turn and starts a fresh one. T3 still owns the original user input.
     if (isCoSContinuation(e) && e.inputId !== o.id && o.delivery === "sent") {
-      o.continuationQueued = true;
+      if (o.pendingEnd?.turnId === o.turnId) {
+        // A continuation arrived after the preceding native turn ended.
+        o.pendingEnd = undefined;
+        o.awaitingContinuation = true;
+        o.continuationQueued = false;
+      } else {
+        o.continuationQueued = true;
+      }
       if (o.turnId)
         o.continuationTurnIds = [
           ...new Set([...(o.continuationTurnIds ?? []), o.turnId]),
@@ -532,6 +577,7 @@ export class Engine {
         ...new Set([...(o.continuationTurnIds ?? []), e.turnId]),
       ];
       o.awaitingContinuation = false;
+      o.pendingEnd = undefined;
       this.store.saveOperation(o);
     }
     // A turn link is evidence only while the recorded stream actually started
@@ -587,26 +633,69 @@ export class Engine {
       e.outcome &&
       e.outcome !== "unknown"
     ) {
-      if (e.outcome === "interrupted" && o.continuationQueued) {
+      if (o.continuationQueued) {
+        // CoS has already queued the next user input. The old turn can
+        // say completed OR interrupted, so this is not yet a T3 end.
         o.continuationQueued = false;
         o.awaitingContinuation = true;
+        o.pendingEnd = undefined;
         this.store.saveOperation(o);
         return;
       }
-      if (e.outcome === "interrupted" && o.awaitingContinuation) return;
-      o.phase =
-        e.outcome === "completed"
-          ? "complete"
-          : ["stopped", "interrupted", "cancelled"].includes(e.outcome)
-            ? "cancelled"
-            : "failed";
-      if (o.phase === "failed") o.error = `turn_${e.outcome}`;
-      s.activeInput = null;
-      this.store.saveSession(s);
+      if (o.awaitingContinuation) return;
+      if (e.outcome === "completed" || e.outcome === "interrupted") {
+        // The next automatic CoS user message can arrive AFTER turn_end.
+        // Persist a short grace window across broker restarts, without
+        // resetting it if the same event is replayed through reconcile.
+        if (o.pendingEnd?.seq !== e.seq)
+          o.pendingEnd = {
+            seq: e.seq,
+            turnId: e.turnId,
+            outcome: e.outcome,
+            observedAt: Date.now(),
+          };
+        this.store.saveOperation(o);
+        return;
+      }
+      this.completeNativeTurn(s, o, e.outcome);
     }
     this.store.saveOperation(o);
   }
+  private completeNativeTurn(s: Session, o: Operation, outcome: string) {
+    o.pendingEnd = undefined;
+    o.continuationQueued = false;
+    o.awaitingContinuation = false;
+    o.phase =
+      outcome === "completed"
+        ? "complete"
+        : ["stopped", "interrupted", "cancelled"].includes(outcome)
+          ? "cancelled"
+          : "failed";
+    if (o.phase === "failed") o.error = "turn_" + outcome;
+    s.activeInput = null;
+    this.store.saveSession(s);
+    this.store.saveOperation(o);
+  }
+  private settlePending(s: Session, o: Operation, now = Date.now()) {
+    const pending = o.pendingEnd;
+    if (
+      !pending ||
+      o.continuationQueued ||
+      o.awaitingContinuation ||
+      o.turnId !== pending.turnId ||
+      now - pending.observedAt < TURN_SETTLE_MS
+    )
+      return;
+    this.completeNativeTurn(s, o, pending.outcome);
+  }
   receive(s: Session, e: Event) {
+    // SSE and periodic reconciliation can hold different Session objects.
+    // Synchronize from durable state before appending, or an old snapshot can
+    // resurrect a finished input or erase the latest CoS turn.
+    const latest = this.store.session(s.id);
+    if (!latest) return;
+    Object.assign(s, latest);
+    if (e.seq <= s.seq) return;
     this.store.append(s, e);
     if (s.activeInput) {
       const o = this.store.operation(s.activeInput);
@@ -651,7 +740,7 @@ export class Engine {
                 current,
                 this.store.operation(current.activeInput)!,
               ).catch(() => undefined);
-          }, 5000);
+          }, 2000);
           try {
             for await (const event of this.control.stream(
               s.cosId!,
@@ -670,6 +759,8 @@ export class Engine {
           }
         } else {
           await this.catchUp(s);
+          const current = this.store.operation(op.id);
+          if (current?.pendingEnd) this.settlePending(s, current);
           await sleep(3000);
         }
         failures = 0;
@@ -703,6 +794,18 @@ export class Engine {
           `/v1/inputs/${encode(o.id)}/cancel`,
           {},
         );
+        // A fresh SSE event may have advanced the input while this network call
+        // was in flight. Merge current durable identity before any write.
+        const beforeAcceptSession = this.store.session(s.id);
+        const beforeAcceptOperation = this.store.operation(o.id);
+        if (
+          !beforeAcceptSession ||
+          beforeAcceptSession.activeInput !== o.id ||
+          !beforeAcceptOperation
+        )
+          return;
+        Object.assign(s, beforeAcceptSession);
+        Object.assign(o, beforeAcceptOperation);
         this.acceptInput(s, o, input);
         if (input.delivery === "not_sent") return { confirmed: true };
       } catch (error) {
