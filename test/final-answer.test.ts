@@ -101,18 +101,26 @@ test("real progress messages stream visibly, while an earlier-position completed
   }
 });
 
-test("no-final stock turns finish on the most complete draft rather than the latest short status", () => {
+test("no-final stock turns promote the last authored message even when earlier progress is longer", () => {
   for (const version of [1, 2] as const) {
     const projector = new FinalAnswerProjection();
     const translator = new Translator(version);
-    projector.message(event(1, "main", fullAnswer, false, 8), translator);
-    projector.message(
-      event(2, "later-progress", "Checking one last thing.", false, 29),
-      translator,
+    const streamed: Record<string, any>[] = [];
+    streamed.push(
+      ...projector.message(event(1, "main", fullAnswer, false, 8), translator),
+    );
+    streamed.push(
+      ...projector.message(
+        event(2, "later-progress", "Checking one last thing.", false, 29),
+        translator,
+      ),
     );
     const updates = projector.end(end(3, "turn-1", "completed"), translator);
-    const final = updatesFor(updates).at(-1)!;
-    assert.equal(textOf(final), fullAnswer);
+    streamed.push(...updates);
+    assert.equal(
+      reconstructedMessages(streamed).at(-1),
+      "Checking one last thing.",
+    );
     assert.deepEqual(projector.finish(translator, "turn-1"), []);
   }
 });
@@ -317,4 +325,81 @@ test("resuming an active T3 chat replays progress but never promotes late revisi
   assert(messages.includes("Starting the work."));
   assert(messages.includes("Running the final checks."));
   assert(!messages.some((text) => text.includes("Stale old-turn update")));
+});
+
+test("real stock final:false snapshots with no final marker select latest authored position", () => {
+  const projection = new FinalAnswerProjection();
+  const translator = new Translator(1);
+  const events = [
+    event(1, "progress", "PROGRESS_VISIBLE", false, 4),
+    event(2, "next-progress", "SECOND_VISIBLE", false, 6),
+    event(3, "actual-finish", "FINAL_VISIBLE", false, 8),
+  ];
+  const updates: Record<string, any>[] = [];
+  for (const e of events) updates.push(...projection.message(e, translator));
+  updates.push(...projection.end(end(4, "turn-1", "completed"), translator));
+  const messages = reconstructedMessages(updates);
+  assert.deepEqual(messages, [
+    "PROGRESS_VISIBLE",
+    "SECOND_VISIBLE",
+    "FINAL_VISIBLE",
+  ]);
+});
+
+test("progress messages surface in T3 activity as labelled non-tool status cards while live", () => {
+  for (const version of [1, 2] as const) {
+    const projection = new FinalAnswerProjection();
+    const translator = new Translator(version);
+    const first = projection.message(
+      event(1, "progress", "Creating the project now.", false, 4),
+      translator,
+    );
+    const second = projection.message(
+      event(
+        2,
+        "progress",
+        "Creating the project now. Checking presets.",
+        false,
+        4,
+      ),
+      translator,
+    );
+    const status = first.find((u) =>
+      String(u.sessionUpdate).startsWith("tool_call"),
+    );
+    const revision = second.find((u) =>
+      String(u.sessionUpdate).startsWith("tool_call"),
+    );
+    assert.equal(
+      status?.sessionUpdate,
+      version === 1 ? "tool_call" : "tool_call_update",
+    );
+    assert.equal(revision?.sessionUpdate, "tool_call_update");
+    assert.equal(status?.kind, "think");
+    assert.equal(status?.title, "CoS progress: Creating the project now.");
+    assert.equal(status?.toolCallId, revision?.toolCallId);
+    assert.equal(
+      (status?._meta as Record<string, string>)["chat-on-steroids/name"],
+      "progress-update",
+    );
+    assert(updatesFor(first).length > 0);
+    const endMessages = projection.end(
+      end(3, "turn-1", "interrupted"),
+      translator,
+    );
+    assert.deepEqual(endMessages, []);
+    assert.deepEqual(
+      projection.message(
+        event(
+          4,
+          "progress",
+          "A late revision that should never appear.",
+          false,
+          4,
+        ),
+        translator,
+      ),
+      [],
+    );
+  }
 });

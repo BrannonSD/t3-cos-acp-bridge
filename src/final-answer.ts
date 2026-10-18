@@ -1,5 +1,5 @@
 import type { Event } from "./contracts.js";
-import { Translator, visible } from "./translate.js";
+import { Translator } from "./translate.js";
 
 /**
  * Project actual CoS message updates into ordinary, visible ACP chat output.
@@ -45,11 +45,33 @@ export class FinalAnswerProjection {
       this.creationOrder.add(key);
       this.latestAppeared = key;
     }
-    // Each original CoS message streams normally under its own stable ID.
-    return translator.event(event);
+    // Ordinary assistant chunks preserve the authored chat messages. Stock T3
+    // may collapse earlier bubbles into its work details until completion.
+    // A clearly labelled progress activity also surfaces the actual text
+    // during the run; it does not pretend a CoS tool was executed.
+    const output = translator.event(event);
+    const detail = event.message?.text ?? "";
+    if (output.length && detail.trim().length >= 12) {
+      const first = !this.progressCards.has(key);
+      this.progressCards.add(key);
+      output.push({
+        sessionUpdate:
+          translator.version === 2 || !first ? "tool_call_update" : "tool_call",
+        toolCallId: "cos-progress:" + key,
+        title: "CoS progress: " + detail.replace(/\s+/g, " ").slice(0, 100),
+        kind: "think",
+        status: "completed",
+        rawInput: "",
+        rawOutput: detail,
+        content: [{ type: "content", content: { type: "text", text: detail } }],
+        _meta: { "chat-on-steroids/name": "progress-update" },
+      });
+    }
+    return output;
   }
 
   private readonly creationOrder = new Set<string>();
+  private readonly progressCards = new Set<string>();
   end(event: Event, translator: Translator): Array<Record<string, unknown>> {
     if (event.kind !== "turn_end") return [];
     const turn = event.turnId ?? "";
@@ -99,8 +121,7 @@ export class FinalAnswerProjection {
     if (this.finalized.has(turn) || this.interrupted.has(turn) || !drafts?.size)
       return [];
     const best = [...drafts.values()].sort(
-      (a, b) =>
-        visible(b.message).length - visible(a.message).length || b.seq - a.seq,
+      (a, b) => b.position - a.position || b.seq - a.seq,
     )[0];
     if (!best) return [];
     const key = best.messageId ?? "assistant:" + turn + ":" + best.position;
