@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import http from "node:http";
@@ -227,7 +227,7 @@ test("ACP stock mode advertises staged image support while preserving CoS-only p
   }
 });
 async function profile() {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "cos-existing-test-"));
+  const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "cos-existing-test-")));
   const cwd = path.join(directory, "project");
   await mkdir(cwd);
   await mkdir(path.join(directory, "state"));
