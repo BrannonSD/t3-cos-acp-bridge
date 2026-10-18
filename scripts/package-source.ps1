@@ -19,10 +19,10 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 try {
   $inside = Join-Path $stage 'cos-acp'
   New-Item -ItemType Directory -Path $inside | Out-Null
-  foreach ($file in @('README.md','SECURITY.md','package.json','package-lock.json','tsconfig.json','.gitignore')) {
+  foreach ($file in @('README.md','SECURITY.md','Install.cmd','package.json','package-lock.json','tsconfig.json','.gitignore')) {
     Copy-Item -LiteralPath (Join-Path $root $file) -Destination (Join-Path $inside $file) -ErrorAction Stop
   }
-  foreach ($dir in @('src','test','scripts','.github')) {
+  foreach ($dir in @('src','test','scripts','.github','docs','assets')) {
     Copy-Item -LiteralPath (Join-Path $root $dir) -Destination $inside -Recurse -ErrorAction Stop
   }
   Compress-Archive -LiteralPath $inside -DestinationPath $out -CompressionLevel Optimal -ErrorAction Stop

@@ -1,104 +1,150 @@
+<div align="center">
+
+<img src="assets/hero.svg" alt="T3 Code and Chat on Steroids connected by a local ACP bridge" width="100%"/>
+
 # Chat on Steroids for T3 Code
 
-Runs the authenticated ChatGPT browser session owned by Chat on Steroids through T3's local ACP provider. No OpenAI API key is used. CoS and its paired ChatGPT browser remain running on the Windows host. The default mode requires the integration runtime for runtime-enforced working directories and approvals. Explicit existing-install mode connects to verified stock CoS 2.1.39 and later compatible 2.x releases without replacing the app, copying its browser profile, or requiring a second login.
+**Use your existing ChatGPT account, models and CoS tools inside T3 Code.**
 
-## Download and install from GitHub (Windows)
+[![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-2865b1?logo=windows11&logoColor=white)](https://github.com/pingdotgg/t3code/releases)
+[![Node.js](https://img.shields.io/badge/Node.js-24%2B-43853d?logo=nodedotjs&logoColor=white)](https://nodejs.org/en/download)
+[![Verify Windows bridge](https://github.com/BrannonSD/t3-cos-acp-bridge/actions/workflows/verify.yml/badge.svg)](https://github.com/BrannonSD/t3-cos-acp-bridge/actions/workflows/verify.yml)
+![No API key](https://img.shields.io/badge/OpenAI%20API%20key-not%20required-7c3aed)
 
-Prerequisites: install the official T3 Code desktop application, the official Chat on Steroids desktop application with local control/actions enabled, and Node.js 24+ including npm. Sign in to CoS normally; no OpenAI API key is needed.
+**[Get started](#-installation)** · **[What works](#-capabilities)** · **[Troubleshooting](#-troubleshooting)** · **[Technical docs](docs/TECHNICAL.md)**
 
-1. Clone this repository using Git, or download GitHub's source ZIP and extract it. Use a directory that does not contain CoS runtime data or T3 settings.
-2. Open Windows PowerShell in the extracted repository directory.
-3. Run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1 -Mode existing-install -AutoStartMain -RegisterT3
-4. Restart T3 Code if its provider list was already open. Select Chat on Steroids in the provider/model picker, then test a new projectless conversation.
-5. For an upgrade, finish all active T3-CoS requests first. Disable only the Chat on Steroids provider, let its old adapter processes end, then run the same installer; the durable SQLite state, CoS login, and unrelated T3 providers must remain intact.
+</div>
 
-InstallRoot, node discovery, release paths, CoS executable discovery and T3 settings location resolve dynamically on Windows. The installation does not use maintainer-specific paths or include credentials. It writes private durable state and generated registration files under the current user's LocalAppData, outside this repository. A clean installation is distinct from public signed installation packages, which are not shipped here.
+---
 
-Run npm run audit:public to check the source before distributing it. See SECURITY.md for audit limitations. There is intentionally no imported development Git history.
-## Existing running installation
+### Two apps. One workflow.
 
-Pass `--existing-install` to the CLI, or set `COS_ACP_MODE=existing-install` in the provider environment. Use `COS_USER_DATA` only if the existing CoS user-data directory differs from the normal `%APPDATA%/chat-on-steroids`. The adapter reads its local control endpoint and per-launch token in place. It reads only `state/projects.json` and `config.json` for project/grant mapping; it never writes either file or accesses browser cookies.
+T3 Code provides the conversation UI, model picker, and thread management. Chat on Steroids (CoS) remains your authenticated ChatGPT execution runtime with its own tools, browser, and permissions. This independent bridge connects them using the local **Agent Client Protocol (ACP)**.
 
-In stock existing-install mode, any absolute T3 working directory may open and send a chat. An exact registered CoS project keeps its verified project ID and existing directory binding. Other T3 folders and projectless chats use CoS's existing projectless input support and receive an explicit directory hint. They are never silently mapped into an unrelated CoS project. CoS file tools can operate in an unregistered T3 folder only when that location is already inside CoS's approved roots; otherwise add the folder through the normal CoS UI before requesting filesystem work. A corrupt or unreadable CoS profile still refuses admission.
+~~~mermaid
+flowchart LR
+    A["T3 Code desktop / mobile viewer"] -->|"ACP (local)"| B["Standalone T3–CoS bridge"]
+    B -->|"Authenticated Windows-local control"| C["Chat on Steroids"]
+    C --> D["Your existing ChatGPT account"]
+~~~
 
-Stock CoS is accepted through the negotiated durable submit, replay and cancel contract on verified CoS 2.1.39 and later compatible 2.x builds. The adapter preserves CoS permissions and model selection. Stock CoS has no native attachment ingress or T3 approval bridge; ACP image blocks, embedded resource blobs, and local file attachment references are instead copied into a private-named staging directory within one of CoS's approved local roots (16 MiB per file). The prompt includes the staged file path, which CoS reads with its own file or image tools. This does not produce native ChatGPT image uploads or automatic inline vision; CoS must inspect the file with a tool. Staged files are placed under the hidden .cos-acp-attachments directory within an approved root and files older than 30 days are pruned during subsequent staging. To clear them sooner, remove that directory after any related CoS turns have finished; avoid committing it to Git. Unrecognized external links are passed as references, and unsupported attachment bytes fail before submission.
+> [!IMPORTANT]
+> This is an independent community integration, not an official T3 Code, Chat on Steroids, or OpenAI release. **Windows desktop is required** for the bridge. The official T3 mobile app can access a connected desktop server; no extra iOS adapter is installed.
 
-Projectless and T3-only project sessions do not write CoS project catalogs, modify grants, or activate a runtime cwd override. Existing project sessions still verify their CoS binding on every submission and reject changed mappings. Resume binds to the recorded T3 working directory; a known session cannot be loaded under an unrelated directory. Stock CoS remains the authority for tool permissions.
+## ✨ Installation
 
-Stock health reports process-start time while endpoint discovery records listener-start time. The adapter allows this discrepancy only in explicit existing-install mode, only when health and endpoint discovery report the same supported stock release, and only with the exact endpoint PID, Windows process creation-time verification, and unchanged endpoint/token snapshots before and after verification. Unknown or mismatched releases fail closed. Credential rotation before an action refuses that action; the original request's durable recovery record remains authoritative.
+**The easiest way is the guided Windows setup. No terminal commands required.**
 
-Stock recovery searches the newest 500 outbox rows by exact input ID, because it has no input-by-ID route, and pages recorded events within the runtime's 100-row page bound. Absence from that bounded window never proves non-delivery or permits automatic replay. Retained delivery-confirmed input receipts and matching turn-end event receipts can establish completion independently; a user message's own marker is a page-side boundary hint that stock revises (it can name the native message id), never an execution turn, so the adapter links turns only from recorded turn-start events and only after that exact input's delivery is proven — an "offered" handout that was never confirmed never claims a turn. Reconciliation drops any persisted link that names no recorded turn-start, healing operations left behind by an earlier release without resending. Otherwise the operation remains unconfirmed for reconciliation in CoS.
+### **[Download the latest source ZIP](https://github.com/BrannonSD/t3-cos-acp-bridge/archive/refs/heads/main.zip)**
 
-## Long-running turns and replay safety
+1. **Install the prerequisites:** [T3 Code for Windows](https://github.com/pingdotgg/t3code/releases), the official [**Chat on Steroids desktop app**](https://github.com/totec448-spec/chat-on-steroids/releases), and [Node.js 24+ with npm](https://nodejs.org/en/download). Open T3 once; sign in to CoS and enable its local control API and actions.
+2. **Extract the whole ZIP.** Open the extracted folder.
+3. **Double-click `Install.cmd`.** Follow the guided installer: system check → preferences → installation → finish.
+4. **Open T3 Code.** Refresh the Providers screen if needed, choose **Chat on Steroids** from the provider/model picker, and try a new chat.
 
-Stock CoS can automatically insert a "Continue the task" message, mark the previous turn interrupted, and start another turn while fulfilling the same original T3 request. The adapter recognizes only CoS's exact continuation marker, follows the resulting native turn and retains the original durable input; an unrelated interrupted turn still completes as cancelled. The auto-generated continuation prompt is not shown as a new T3 user message.
+The wizard checks prerequisites, registers the provider, and installs a verified local release. It displays live progress and error details, without modifying the CoS app or making a second ChatGPT account. On first installation it downloads npm dependencies, so internet access is required.
 
-While a T3 turn is active, previously recorded assistant revisions from other turns are not projected into the current ACP reply. Existing T3 threads already store their displayed history and do not receive full CoS assistant-history replay when loaded; native imports and non-T3 ACP clients retain the ordinary replay mechanism. This avoids a v1 ACP client concatenating historical assistant messages into a new answer. Existing truncated threads are not silently mutated or repaired by the adapter.
+**Windows may show a security warning** because this is source-distributed PowerShell, not a code-signed installer. Review [Install.cmd](Install.cmd) and [scripts/setup-wizard.ps1](scripts/setup-wizard.ps1) before running them. The launcher uses `-ExecutionPolicy Bypass` for this process only and does not change your system-wide PowerShell policy.
 
-## Stock worker observation
+<details>
+<summary><strong>Prefer PowerShell or automation?</strong></summary>
 
-Stock CoS advertises read-only worker status and report routes for an owner, distinct from the newer session-scoped worker control API. Older completed workers can also be discovered from a bounded, paginated CoS session index when the recorded origin names this exact parent; up to the newest 200 indexed sessions are scanned. The adapter observes workers associated with the current CoS session, emits status as ACP tool cards, and follows recorded child tool events only when CoS names the child under that parent. Parent-linked child activity is also replayed when the T3 session resumes. Stock does not expose its worker creation, approvals, and Goal/Loop controls through the adapter. T3's stock ACP UI shows worker tool activity, not independent native child-chat panels. CoS remains responsible for spawning and coordinating its own workers.
+From the extracted repository directory:
 
-## Correct final-answer selection in stock T3
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1 -Mode existing-install -AutoStartMain -RegisterT3
+~~~
 
-CoS can stream several provisional assistant messages, then finalize an earlier-position message after a later short progress note. Generic T3 ACP does not understand CoS final-message identity and may otherwise display that short note as the collapsed final answer. The adapter now projects explicit non-final CoS message snapshots into expandable ACP progress activity, and promotes only an event marked final to the regular T3 assistant response. This prioritizes a correct final message; on stock T3 the draft text streams in activity while the ordinary answer appears at finalization. When CoS never supplies a final marker, the adapter preserves the most complete candidate at successful turn completion rather than dropping the reply. Interrupted automatic continuation turns do not fabricate a final answer. This does not retrospectively rewrite already persisted T3 transcripts.
-## Stock T3 lineage, compaction and automation
+For a read-only prerequisite report:
 
-Stock T3's generic local-ACP provider does not currently recognize CoS-specific worker-to-child-thread metadata. The adapter preserves stable worker tool IDs and groups verified child messages and child tool calls as worker-labelled tool activity rather than incorrectly mixing a child's answer into the parent's transcript. It also advertises native CoS worker metadata for T3 builds that explicitly negotiate the chat-on-steroids/worker client extension. **Do not label generic tool cards as full T3 native child-thread lineage.** An upstream stock T3 parser that opts in to the extension is required to create navigable child threads without modifying either application.
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/setup-wizard.ps1 -CheckOnly
+~~~
 
-Stock CoS 2.1.40 exposes read-only live session automation (off, goal, loop) and job (compaction/handoff) state. The adapter displays observed Goal/Loop changes in ACP activity and maps actual compaction job stages into ACP v2 compaction_update records (ACP v1 falls back to a tool card). A real CoS handoff must happen first; a status update is not a compaction request. Stock 2.1.40 does not advertise the session-scoped compact or automation action routes. Consequently /compact, /cos-goal, /cos-loop, and /cos-off cannot safely control the stock app. No confirmation is fabricated and no model text is substituted for a native action. /cos-status and /cos-workers are read-only and available in stock mode. Commands can be expanded when an official CoS release exposes the required routes.
+The core installer remains noninteractive and supports `-InstallRoot`, `-NodePath`, and omitting `-RegisterT3` or `-AutoStartMain`. See the [technical installation reference](docs/TECHNICAL.md#portable-windows-source-installation).
 
-## Portable Windows source installation
+</details>
 
-The installer prefers Node.js on the machine's PATH and falls back to a compatible existing integration runtime; it no longer assumes a Codex-owned Node runtime. npm is discovered alongside Node or from PATH. A clean source archive (no Git checkout or preinstalled node_modules) installs its own development dependencies, builds and tests locally, and calculates a deterministic source revision for an immutable host-local release.
+## 🔄 Updating safely
 
-Package only the application source and build/test scripts by running powershell -File scripts/package-source.ps1. Extract the source ZIP, install Node.js 24+ with npm, then run powershell -ExecutionPolicy Bypass -File scripts/install.ps1 -Mode existing-install -AutoStartMain -RegisterT3. Start stock T3 at least once before using -RegisterT3. The registration helper creates a timestamped settings backup, leaves unrelated providers alone, and refuses switching a still-enabled provider to a different release. It removes the optional CoS-native integration discriminator by default because current stock T3 lacks the native lineage parser. Use node scripts/register-t3.mjs --native only after verifying that the installed T3 build supports that discriminator.
+**Your conversations are more important than an update.** The wizard never silently stops an active T3-CoS turn or swaps a live bridge.
 
-The executable for an installed CoS is found under the current user's LocalAppData Programs directory, machine-wide Program Files (including x86), or an explicit COS_ACP_COS_EXE absolute path ending in Chat On Steroids.exe. CoS still has to be configured and authenticated by the user. No CoS source, browser profile, local token, or T3 application code is packaged. This is a development source archive rather than a code-signed public installer; test it on clean Windows systems and publish independent checksums before public distribution.
-## Compatibility and state evolution
+1. Finish any running Chat on Steroids requests in T3.
+2. In **T3 → Settings → Providers**, disable **only** Chat on Steroids.
+3. Run the wizard from the new download and select **Refresh checks**.
+4. Complete setup, then refresh the provider in T3.
 
-Health produces an adapter compatibility report, also exposed in ACP initialization metadata at `chat-on-steroids/integration`. Extended runtimes may advertise `integrationManifest` with envelope ID `chat-on-steroids.control` and version 1. Optional features require both a supported feature version and its route. Unknown envelope/core feature versions fail before submission; unknown optional feature versions remain disabled. The original integration runtime's route contract remains supported for migration.
+An existing enabled provider is a deliberate upgrade blocker. Your private bridge SQLite data, CoS login, T3 conversation history and unrelated providers remain in place. For recovery, see [release safety and rollback](docs/TECHNICAL.md#compatibility-and-state-evolution).
 
-Adapter SQLite schema 1 is an additive stamp over the original schema; session JSON, event receipts, prompt ownership, and uncertain operations are preserved. A newer schema refuses to open with an older adapter. Broker discovery pins its adapter path, Node runtime, CoS profile path, and compatibility mode. A mismatched live broker is left running and the new client refuses to reuse it. Drain operations and let the old broker exit before switching releases, or select another private state directory without replaying previous prompt IDs there. Release changes never restart CoS or migrate its profile.
+## 🧩 Capabilities
 
-## Install and update
+| Capability | Status on stock apps |
+|---|---|
+| Existing ChatGPT login, no API key | ✅ Supported |
+| Create, resume and follow up in T3 | ✅ Supported |
+| CoS account model catalog and reasoning effort | ✅ Supported |
+| Live response, tool activity, and correct final-answer selection | ✅ Supported |
+| Projectless chats and known CoS project binding | ✅ Supported |
+| CoS tools, files, browser and plugins | ✅ Owned by CoS, subject to its grants |
+| Worker status and selected parent-linked activity | ✅ Observational tool cards |
+| Image/file inputs | ⚠️ Staged under an approved local CoS root, not native ChatGPT uploads |
+| Separate navigable T3 child-agent threads | ⏳ Requires upstream T3 support |
+| Change Goal/Loop or force native compaction from T3 | ⏳ Requires upstream CoS API support |
+| Independent native iOS runtime | Not needed; T3 mobile connects to desktop |
 
-For the normal Windows install, `scripts/install.ps1 -Mode existing-install -AutoStartMain` prepares `COS_ACP_AUTOSTART=1`. With that environment row in T3, a cold provider check starts only `%LOCALAPPDATA%/Programs/Chat On Steroids/Chat On Steroids.exe` with its usual main profile and login, then performs the same authenticated identity checks. No second profile, alternate binary, or control-setting change is made. The main profile must already have local control and actions enabled. A running CoS is reused; concurrent checks share one startup; a slow/failed startup cannot cause repeated launches. Disable the provider (or remove that environment row and drain the broker) to stop automatic launches.
+CoS's own tool approval dialogs and permission policy remain authoritative in stock mode. T3 cannot override them.
 
-T3 remains the conversation UI. For its `t3-code` client, the adapter replaces recognized generic T3 browser/MCP framing with CoS tool ownership while retaining the authored request and Plan/Default constraint. CoS tools, browser, permissions, skills and plugins remain authoritative. T3 already owns submitted messages, so CoS's recorded delivery revisions are kept as receipts without creating duplicate user bubbles. Native text and tool events still use normal ACP rendering.
+## 🔒 Privacy & security
 
-Use Node 24 or later. Run `npm ci`, then `scripts/install.ps1`. The installer builds, runs isolated tests, installs versioned production files below `%LOCALAPPDATA%/T3-CoS-Integration/releases`, protects adapter state with a user-only Windows ACL, and writes `provider-registration.json`. It never changes a running T3 database. Register `providerInstances.chat_on_steroids` through T3's supported settings API, preserving all existing provider records. The executable is the absolute `node.exe`, with the absolute installed `dist/cli.js` as an argument; T3 rejects `.cmd` launchers.
+- **Local-only control:** the bridge communicates with CoS's authenticated local control interface. Tokens are never placed in the T3 provider configuration or committed to Git.
+- **Private persistence:** runtime session mappings and receipts live under your Windows user's LocalAppData, separate from this repository.
+- **No packaged user data:** this repo and the downloadable source ZIP exclude browser profiles, CoS credentials, personal paths, T3 settings, or private transcripts.
+- **Guarded upgrades:** immutable verified releases, backups of T3 provider settings, preflight checks and fail-closed input recovery.
+- **Reviewable source:** run `npm run audit:public`, `npm run check`, and `npm test`; GitHub Actions validates Windows builds.
 
-CoS Settings must have local control API and actions enabled. Use `node dist/cli.js --diagnose` for a credential-free connection check. Normal provider startup has no windows or terminal output besides ACP JSON-RPC. `%LOCALAPPDATA%/T3-CoS-Integration/state` contains session mappings and cached transcript events; treat it as private conversation data. `COS_USER_DATA` may select a separate CoS profile; `COS_ACP_HOME` may select a separate private integration state directory. Neither variable contains credentials.
+Read [SECURITY.md](SECURITY.md) for threat boundaries and limitations. Automated secret scans reduce the risk of accidental disclosure, but cannot guarantee the absence of every possible sensitive value.
 
-Updates install into a distinct revision directory. Disable the provider and finish or stop active work before changing its command arguments to the new release. Upgrading from a release without the global prompt-ID ownership table requires draining in-flight requests first, since the old database cannot reconstruct message keys for historical operations. Keep the previous registration and release for rollback. Broker state uses SQLite with full durability and is independent of releases. Do not delete it to troubleshoot uncertain delivery.
+## 🛠️ Troubleshooting
 
-## Use
+<details>
+<summary><strong>The wizard says T3 Code is missing</strong></summary>
 
-For fresh stock-CoS sessions with a valid account model catalog, the adapter initially selects the first supported model with **Medium** thinking (currently GPT-6), so the reasoning dropdown exists before the first prompt. Selecting a new model without an existing valid effort also prefers Medium over Instant. **ChatGPT current model** remains a deliberate opt-in that defers model and effort to CoS/ChatGPT, while **none** is still an explicit Instant choice. Existing sessions retain their saved model/effort settings.
+Open the installed T3 desktop application at least once. The wizard looks for that Windows user's normal T3 settings file. It does not create a fake application installation.
 
-Select **Chat on Steroids** in T3, including a projectless chat. For stock existing-install mode, an exact matching CoS project uses that project identity; an unregistered T3 folder uses projectless CoS input plus a working-directory hint and can read files only within CoS's approved roots. The normal integration runtime offers enforced cwd and T3 Supervised approvals. Stock CoS only offers **CoS permissions**; its own tool approval decisions remain in CoS. Choose account-observed ChatGPT models and efforts.
+</details>
 
-Native CoS text, tools, revisions and supported generated media flow through ACP. In stock mode, user images and files are staged into readable local paths and passed to CoS with an instruction to inspect them. Stock worker states appear as tool cards when owner-scoped records exist, while the full worker controls, automation commands and distinct worker panels require additional runtime/presentation support. Model and permission choices remain subject to the detected CoS capabilities.
+<details>
+<summary><strong>Node.js or npm is missing</strong></summary>
 
-## Delivery and recovery
+Install Node.js 24 or newer including npm from [nodejs.org](https://nodejs.org/en/download), then reopen the wizard. It uses your normal `node.exe` on PATH instead of a machine-specific bundled runtime.
 
-One shared local broker owns the CoS API connection, a maximum of three SSE streams, and polling for additional sessions. CoS's per-launch endpoint/token are reread on every connection; health must match the endpoint's PID and startup identity. The broker itself uses authenticated local named pipes, never a public listener. The CoS bearer token is never copied into T3 configuration or diagnostic output.
+</details>
 
-The adapter persists each input ID before submitting. An HTTP acceptance means admitted to CoS's outbox. Completion requires delivery evidence and the matching recorded turn end; an unrelated assistant finish cannot settle the request. Network uncertainty retains the same input and never automatically replays its text. T3 request metadata identifies idempotent retries across adapter restarts. A durable, hashed prompt-ID ownership index now also refuses the same key in a different ACP session: this prevents a duplicate on native-session replacement but cannot automatically resume the earlier conversation. Resume the original session after a disconnect, or send an intentionally new user message with a new ID. An unconfirmed earlier input blocks a new instruction until its durable state is reconciled.
+<details>
+<summary><strong>The wizard won't upgrade an existing integration</strong></summary>
 
-Cancel first attempts a provably unsent queued cancellation; otherwise it sends Stop for the input's observed exact turn. Accepted Stop does not claim termination. File checkpoints and rollback belong to T3 and Git; they do not rewind ChatGPT's memory. Start a new conversation or explicitly reconcile file state after rollback.
+Finish the running T3-CoS session, disable the Chat on Steroids provider in **T3 Settings → Providers**, and click **Refresh checks**. Do not delete SQLite state, provider settings, or your CoS profile to force an upgrade.
 
-Disable the provider in T3 to disconnect; supervised tool requests fail closed when their controller lease expires. Leave CoS's own controls available for pending/unconfirmed operations. Removing a provider does not delete CoS history or adapter recovery records.
+</details>
 
-## Integration validation status
+<details>
+<summary><strong>The provider appears, but replies cannot start</strong></summary>
 
-Automated tests cover ACP v1/v2 and CoS control contracts with isolated fixtures. Run `node scripts/smoke-stdio.mjs` after installing a release to exercise **that installed CLI** through real ACP v1/v2 stdio initialization. The smoke forces an isolated, disabled CoS profile, does not send a prompt or touch live CoS settings, validates actionable errors and quiet stdout/stderr, and removes its temporary broker. To check an uninstalled build, pass an absolute `dist/cli.js` path as the first argument after `npm run build`. For an installation under a custom root, also pass its absolute `installation.json` path as the second argument; the smoke test disables inherited CoS auto-start so it cannot launch the main application. Live connection to the normal CoS profile, a registered T3 provider process, and the official iOS application remain separate acceptance checks.
+Open CoS and check that you're signed in, **local control API** and **actions** are enabled, and the app is running. Restart or refresh the T3 provider view. For advanced diagnosis use the installed CLI with `--diagnose`, or see the [technical reference](docs/TECHNICAL.md).
 
-CoS generated image events are resolved through its authenticated session asset API and emitted as inline ACP image content for the parent or an owned worker. The adapter sends neither the CoS control bearer nor its loopback asset URL to T3; unsupported or expired assets produce a readable notice.
+</details>
 
-CoS must supply the integration routes before using the corresponding extended project, attachment, approval and worker capabilities. The existing-install tier supports the limited stock contract described above. T3 must supply a stable per-turn `_meta.promptId` or `_meta.requestId` when retrying the same user instruction; otherwise uncertain input remains fenced by the durable broker record and cannot safely be resubmitted under a new identity. Extended-runtime CoS worker sessions are routed to T3 with explicit child context metadata, with active workers monitored after their parent turn settles. A sleeping CoS worker is revivable but not executing work.
+<details>
+<summary><strong>Images or project files aren't available</strong></summary>
 
-## Development
+The stock CoS control API cannot receive native ChatGPT attachments through this bridge. Files are securely staged under a CoS-approved local root for CoS to inspect with its own file/image tools. Add the desired folder to CoS's approved roots when necessary.
 
-`npm run check`, `npm test`, `npm run build`. Tests use temporary adapter databases, in-process ACP clients and ephemeral loopback mock services. They never alter the active CoS profile or T3 database. The official ACP SDK is pinned because draft v2 wire contracts can change. Revalidate both ACP versions and the CoS API tests before upgrading it.
+</details>
+
+## For maintainers
+
+The installer is intentionally **source-first** rather than a prepackaged unsigned `.exe`. It uses native Windows PowerShell/WPF for the UI, with the same audited PowerShell installer behind both CLI and wizard. There is no web-hosted installation agent, no cloud bridge service, and no additional authentication token.
+
+The in-depth implementation, runtime compatibility, recovery, worker behavior and ACP details live in **[docs/TECHNICAL.md](docs/TECHNICAL.md)**. The repository itself is not an official support channel for upstream T3 or CoS application issues.
+
+<sub>Built as a standalone integration. T3 Code, Chat on Steroids and ChatGPT are trademarks of their respective owners.</sub>

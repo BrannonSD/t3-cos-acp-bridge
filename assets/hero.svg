@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="330" viewBox="0 0 1200 330" role="img" aria-label="T3 Code and Chat on Steroids connected through a standalone ACP bridge">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0c152c"/>
+      <stop offset=".58" stop-color="#17234a"/>
+      <stop offset="1" stop-color="#201a42"/>
+    </linearGradient>
+    <linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+  </defs>
+  <rect width="1200" height="330" rx="26" fill="url(#bg)"/>
+  <g opacity=".13" stroke="#86e8ff" stroke-width="1">
+    <path d="M44 44H1156M44 100H1156M44 156H1156M44 212H1156M44 268H1156"/>
+    <path d="M68 20V306M156 20V306M244 20V306M332 20V306M420 20V306M508 20V306M596 20V306M684 20V306M772 20V306M860 20V306M948 20V306M1036 20V306M1124 20V306"/>
+  </g>
+  <rect x="58" y="52" width="98" height="98" rx="25" fill="#253454" stroke="#7491c6" stroke-width="2"/>
+  <text x="107" y="115" fill="#8cecff" font-family="Segoe UI,Arial,sans-serif" font-weight="800" font-size="42" text-anchor="middle">T3</text>
+  <text x="188" y="86" fill="#ffffff" font-family="Segoe UI,Arial,sans-serif" font-weight="750" font-size="49">T3</text>
+  <text x="274" y="86" fill="#71e8fb" font-family="Segoe UI,Arial,sans-serif" font-weight="600" font-size="46">×</text>
+  <text x="317" y="86" fill="#ffffff" font-family="Segoe UI,Arial,sans-serif" font-weight="750" font-size="49">Chat on Steroids</text>
+  <text x="190" y="123" fill="#aac3dc" font-family="Segoe UI,Arial,sans-serif" font-size="20">One desktop. Your existing ChatGPT account.</text>
+  <rect x="188" y="162" width="430" height="52" rx="13" fill="#152f40" stroke="#386880" stroke-width="1.5"/>
+  <text x="403" y="195" fill="#8cf0ff" font-family="Segoe UI,Arial,sans-serif" text-anchor="middle" font-weight="650" font-size="20">Standalone ACP bridge</text>
+  <path d="M618 187H681" stroke="url(#a)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M669 176L683 187L669 198" fill="none" stroke="#84e9ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="703" y="150" width="415" height="88" rx="19" fill="#22274a" stroke="#565eac" stroke-width="1.5"/>
+  <circle cx="744" cy="194" r="15" fill="#8b5cf6"/>
+  <circle cx="744" cy="194" r="6" fill="#daf2ff"/>
+  <text x="781" y="186" fill="#ffffff" font-family="Segoe UI,Arial,sans-serif" font-size="23" font-weight="650">Authenticated CoS</text>
+  <text x="781" y="212" fill="#adb9d8" font-family="Segoe UI,Arial,sans-serif" font-size="16">Models · Tools · Workers</text>
+  <text x="58" y="285" fill="#b4c6db" font-family="Segoe UI,Arial,sans-serif" font-size="16">Windows  ·  Guided installation  ·  Local-only credentials  ·  No OpenAI API key</text>
+</svg>
