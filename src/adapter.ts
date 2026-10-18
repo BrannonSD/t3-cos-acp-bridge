@@ -47,6 +47,7 @@ export class Adapter {
   connectionSignal?: AbortSignal;
   readonly sessions = new Map<string, Session>();
   readonly translators = new Map<string, Translator>();
+  private readonly finalProjections = new Map<string, FinalAnswerProjection>();
   readonly active = new Map<string, Promise<v1.PromptResponse>>();
   readonly permissionRequests = new Set<string>();
   readonly sentCursors = new Map<string, number>();
@@ -187,6 +188,9 @@ export class Adapter {
       // load makes stock ACP v1 concatenate historical assistant responses
       // into a new assistant bubble. Only native CoS imports need full replay.
       const t3Persisted = this.clientName === "t3-code" && s.id === id;
+      const projected =
+        t3Persisted && s.activeInput ? new FinalAnswerProjection() : undefined;
+      if (projected) this.finalProjections.set(id, projected);
       let after = t3Persisted ? (s.activeInput ? 0 : s.seq) : 0;
       for (;;) {
         const state = await this.gateway.call<State>("state", {
@@ -200,8 +204,16 @@ export class Adapter {
             !(this.clientName === "t3-code" && e.kind === "user_message") &&
             !isCoSContinuation(e)
           ) {
-            for (const u of await this.eventUpdates(id, s, e))
-              await this.update(client, id, u);
+            const updates =
+              projected &&
+              e.kind === "assistant_message" &&
+              typeof e.final === "boolean"
+                ? projected.message(e, this.translator(id))
+                : await this.eventUpdates(id, s, e);
+            for (const u of updates) await this.update(client, id, u);
+            if (projected && e.kind === "turn_end")
+              for (const u of projected.end(e, this.translator(id)))
+                await this.update(client, id, u);
           }
           after = e.seq;
         }
@@ -520,6 +532,7 @@ export class Adapter {
       attachments,
       key,
     });
+    this.finalProjections.delete(id);
     if (this.version === 2) {
       if (this.clientName !== "t3-code")
         await this.update(client, id, {
@@ -920,7 +933,9 @@ export class Adapter {
     signal?: AbortSignal,
   ): Promise<v1.PromptResponse> {
     let after = this.sentCursors.get(id) ?? s.seq;
-    const finalAnswers = new FinalAnswerProjection();
+    const finalAnswers =
+      this.finalProjections.get(id) ?? new FinalAnswerProjection();
+    this.finalProjections.set(id, finalAnswers);
     let controlsAt = 0;
     let childActive = false;
     let uncertainNotifiedAt = 0;
@@ -1000,9 +1015,14 @@ export class Adapter {
         (!state.session.activeInput ||
           (op && ["complete", "cancelled", "failed"].includes(op.phase)))
       ) {
-        if (this.clientName === "t3-code")
-          for (const update of finalAnswers.finish(this.translator(id)))
+        if (this.clientName === "t3-code" && op?.phase === "complete")
+          for (const update of finalAnswers.finish(
+            this.translator(id),
+            op.turnId ?? undefined,
+          ))
             await this.update(client, id, update);
+        if (this.finalProjections.get(id) === finalAnswers)
+          this.finalProjections.delete(id);
         const reason = op?.phase === "cancelled" ? "cancelled" : "end_turn";
         if (this.version === 2)
           await this.update(client, id, {
