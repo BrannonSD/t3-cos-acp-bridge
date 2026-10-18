@@ -13,6 +13,7 @@ import {
 } from "./contracts.js";
 import { sleep } from "./engine.js";
 import { belongsToInput, isCoSContinuation } from "./continuation.js";
+import { FinalAnswerProjection } from "./final-answer.js";
 import { authoredT3Text, coST3Prompt } from "./t3-context.js";
 import {
   sessionCommands,
@@ -919,6 +920,7 @@ export class Adapter {
     signal?: AbortSignal,
   ): Promise<v1.PromptResponse> {
     let after = this.sentCursors.get(id) ?? s.seq;
+    const finalAnswers = new FinalAnswerProjection();
     let controlsAt = 0;
     let childActive = false;
     let uncertainNotifiedAt = 0;
@@ -959,13 +961,23 @@ export class Adapter {
         // CoS may revise prior-turn text during a later turn. Stock T3 ACP v1
         // would append this history to the currently streaming assistant bubble.
         // Only emit content owned by the admitted input and its continuations.
-        for (const update of (this.clientName === "t3-code" &&
-          (event.kind === "user_message" ||
-            !belongsToInput(event, state.operation))) ||
-        isCoSContinuation(event)
-          ? []
-          : await this.eventUpdates(id, s, event))
-          await this.update(client, id, update);
+        const suppressed =
+          (this.clientName === "t3-code" &&
+            (event.kind === "user_message" ||
+              !belongsToInput(event, state.operation))) ||
+          isCoSContinuation(event);
+        if (!suppressed) {
+          const updates =
+            this.clientName === "t3-code" &&
+            event.kind === "assistant_message" &&
+            typeof event.final === "boolean"
+              ? finalAnswers.message(event, this.translator(id))
+              : await this.eventUpdates(id, s, event);
+          for (const update of updates) await this.update(client, id, update);
+          if (this.clientName === "t3-code" && event.kind === "turn_end")
+            for (const update of finalAnswers.end(event, this.translator(id)))
+              await this.update(client, id, update);
+        }
         after = event.seq;
         this.sentCursors.set(id, after);
       }
@@ -988,6 +1000,9 @@ export class Adapter {
         (!state.session.activeInput ||
           (op && ["complete", "cancelled", "failed"].includes(op.phase)))
       ) {
+        if (this.clientName === "t3-code")
+          for (const update of finalAnswers.finish(this.translator(id)))
+            await this.update(client, id, update);
         const reason = op?.phase === "cancelled" ? "cancelled" : "end_turn";
         if (this.version === 2)
           await this.update(client, id, {

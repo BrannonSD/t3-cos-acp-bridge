@@ -116,6 +116,7 @@ const kind = (value: string): V1.ToolKind =>
     : "other";
 export class Translator {
   readonly text = new Map<string, string>();
+  readonly drafts = new Map<string, string>();
   readonly tools = new Set<string>();
   private noteSequence = 0;
   constructor(readonly version: 1 | 2) {}
@@ -206,6 +207,25 @@ export class Translator {
       return this.note(detail);
     }
     return [];
+  }
+  /** Stream provisional CoS text into expandable activity, not a final answer. */
+  draft(e: Event): Array<Record<string, unknown>> {
+    const id =
+      e.messageId ?? "assistant:" + (e.turnId ?? "history") + ":" + e.position;
+    const text = nativeMarkdown(visible(e.message));
+    const before = this.drafts.get(id) ?? "";
+    this.drafts.set(id, text);
+    if (text === before) return [];
+    const suffix = text.startsWith(before)
+      ? text.slice(before.length)
+      : "\n[Draft revised]\n" + text;
+    return [
+      {
+        sessionUpdate: "agent_thought_chunk",
+        ...(this.version === 2 ? { messageId: "cos-draft:" + id } : {}),
+        content: { type: "text", text: suffix },
+      },
+    ];
   }
   note(text: string): Array<Record<string, unknown>> {
     const messageId = `cos-status:${++this.noteSequence}`;
