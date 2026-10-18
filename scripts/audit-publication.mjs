@@ -66,7 +66,7 @@ for (const { absolute, rel } of files) {
       errors.push(rel + ": machine-specific home/app-data path");
     }
   }
-  const withoutPublicWebLinks = normalized.replace(/https?:\/\/[^\s"'<>)]+/g, "[public-url]");
+  const withoutPublicWebLinks = normalized.replaceAll("https://github.com/brannonsd/t3-cos-acp-bridge", "[public-repository]");
   if (homeUser.length >= 4 && withoutPublicWebLinks.includes(homeUser)) {
     errors.push(rel + ": machine-specific user identifier");
   }
