@@ -11,7 +11,7 @@
 [![Verify Windows bridge](https://github.com/BrannonSD/t3-cos-acp-bridge/actions/workflows/verify.yml/badge.svg)](https://github.com/BrannonSD/t3-cos-acp-bridge/actions/workflows/verify.yml)
 ![No API key](https://img.shields.io/badge/OpenAI%20API%20key-not%20required-7c3aed)
 
-**[Get started](#-installation)** · **[What works](#-capabilities)** · **[Troubleshooting](#-troubleshooting)** · **[Technical docs](docs/TECHNICAL.md)**
+**[Get started](#-installation)** · **[What works](#-capabilities)** · **[Troubleshooting](#troubleshooting)** · **[Technical docs](docs/TECHNICAL.md)**
 
 </div>
 
@@ -104,8 +104,7 @@ CoS's own tool approval dialogs and permission policy remain authoritative in st
 
 Read [SECURITY.md](SECURITY.md) for threat boundaries and limitations. Automated secret scans reduce the risk of accidental disclosure, but cannot guarantee the absence of every possible sensitive value.
 
-## 🛠️ Troubleshooting
-
+## Troubleshooting
 <details>
 <summary><strong>The wizard says T3 Code is missing</strong></summary>
 
