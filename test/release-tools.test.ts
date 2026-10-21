@@ -29,13 +29,15 @@ test("release verification detects tampering, extra files, and changed Node byte
       JSON.stringify({
         name: "test",
         version: "1.0.0",
+        engines: { node: ">=26.12.1 <27" },
         dependencies: { "@agentclientprotocol/sdk": "1.9.0" },
       }),
     );
     await writeFile(path.join(release, "cli.js"), "original");
     const node = path.join(root, "node.exe");
     await writeFile(node, "runtime");
-    await createManifest(release, "abcdef012345", node);
+    const manifest = await createManifest(release, "abcdef012345", node);
+    assert.equal(manifest.nodeMajor, 26);
     await verifyRelease(release, node);
     await assert.rejects(
       createManifest(release, "abcdef012345", node),
