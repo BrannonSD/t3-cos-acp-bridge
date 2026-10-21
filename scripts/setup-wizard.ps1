@@ -16,7 +16,7 @@ function Get-SetupReadiness {
   if ($node) {
     try {
       $nodeVersion = (& $node.Source -p 'process.versions.node' 2>$null).Trim()
-      $nodeReady = ([version]$nodeVersion -ge [version]'24.0.0')
+      $nodeReady = ([version]$nodeVersion -ge [version]'26.12.1' -and ([version]$nodeVersion).Major -eq 26)
       $npm = Join-Path (Split-Path $node.Source) 'node_modules\npm\bin\npm-cli.js'
       $npmReady = (Test-Path -LiteralPath $npm) -or [bool](Get-Command npm.cmd -ErrorAction SilentlyContinue)
     } catch {}
@@ -355,7 +355,7 @@ function Refresh-Checks {
     return
   }
   $r = $script:readiness
-  $NodeCheck.Text = if ($r.nodeReady) { "READY   Node.js $($r.nodeVersion) (24+)" } else { 'MISSING   Node.js 24 or newer is required' }
+  $NodeCheck.Text = if ($r.nodeReady) { "READY   Node.js $($r.nodeVersion) (26.12.1+)" } else { 'MISSING   Node.js 26.12.1 or a later Node 26 patch is required' }
   $NpmCheck.Text = if ($r.npmReady) { 'READY   npm package manager' } else { 'MISSING   npm must be installed alongside Node.js' }
   $T3Check.Text = if ($r.t3Ready -and $r.settingsReadable) { 'READY   T3 Code settings detected' } else { 'MISSING   Install and open T3 Code once' }
   $CosCheck.Text = if ($r.cosReady) { 'READY   Chat on Steroids installation detected' } else { 'MISSING   Install Chat on Steroids for Windows' }
