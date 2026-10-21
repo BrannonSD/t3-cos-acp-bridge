@@ -22,10 +22,10 @@ if (-not $NodePath) {
     }
   }
 }
-if (-not $NodePath) { throw 'Node.js 24 or later is required. Install Node.js or pass -NodePath.' }
+if (-not $NodePath) { throw 'Node.js 26.12.1 or a later Node 26 patch is required. Install Node.js or pass -NodePath.' }
 $resolvedNode = (Resolve-Path -LiteralPath $NodePath).Path
 $nodeVersion = & $resolvedNode -p 'process.versions.node'
-if ([version]$nodeVersion -lt [version]'24.0.0') { throw 'The integration requires Node.js 24 or later.' }
+if ([version]$nodeVersion -lt [version]'26.12.1' -or ([version]$nodeVersion).Major -ne 26) { throw 'The integration requires Node.js 26.12.1 or a later Node 26 patch.' }
 $npmCli = Join-Path (Split-Path $resolvedNode) 'node_modules/npm/bin/npm-cli.js'
 if (-not (Test-Path -LiteralPath $npmCli)) {
   $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue

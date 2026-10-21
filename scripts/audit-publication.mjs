@@ -8,12 +8,12 @@ import { homedir } from "node:os";
 
 const root = resolve(import.meta.dirname, "..");
 const allowedRootFiles = new Set([
-  ".gitignore", "README.md", "SECURITY.md", "LICENSE", "Install.cmd",
+  ".gitignore", ".node-version", "README.md", "SECURITY.md", "LICENSE", "Install.cmd",
   "package.json", "package-lock.json", "tsconfig.json",
 ]);
 const allowedSourceDirs = new Set(["src", "test", "scripts", ".github", "docs", "assets"]);
 const ignoredDevelopmentDirs = new Set([".git", "node_modules", "dist"]);
-const allowedExtensions = new Set([".js", ".mjs", ".ts", ".json", ".ps1", ".md", ".yml", ".yaml", ".gitignore", ".svg", ".cmd", ""]);
+const allowedExtensions = new Set([".js", ".mjs", ".ts", ".json", ".ps1", ".md", ".yml", ".yaml", ".gitignore", ".svg", ".cmd", ".node-version", ""]);
 const prohibitedNames = /(?:^|\/)(?:\.env(?:\..*)?|\.npmrc|\.pypirc|\.aws|\.ssh|\.config|token|endpoint\.json|broker\.json|state\.sqlite|installation\.json|provider-registration\.json|.*\.(?:p8|pem|key|p12|pfx|db|sqlite|zip|bak|log))$/i;
 const contentRules = [
   ["private key block", /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/],
