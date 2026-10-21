@@ -7,7 +7,7 @@
 **Use your existing ChatGPT account, models and CoS tools inside T3 Code.**
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-2865b1?logo=windows11&logoColor=white)](https://github.com/pingdotgg/t3code/releases)
-[![Node.js](https://img.shields.io/badge/Node.js-24%2B-43853d?logo=nodedotjs&logoColor=white)](https://nodejs.org/en/download)
+[![Node.js](https://img.shields.io/badge/Node.js-26.12.1%2B-43853d?logo=nodedotjs&logoColor=white)](https://nodejs.org/en/download)
 [![Verify Windows bridge](https://github.com/BrannonSD/t3-cos-acp-bridge/actions/workflows/verify.yml/badge.svg)](https://github.com/BrannonSD/t3-cos-acp-bridge/actions/workflows/verify.yml)
 ![No API key](https://img.shields.io/badge/OpenAI%20API%20key-not%20required-7c3aed)
 
@@ -37,7 +37,7 @@ flowchart LR
 
 ### **[Download the latest source ZIP](https://github.com/BrannonSD/t3-cos-acp-bridge/archive/refs/heads/main.zip)**
 
-1. **Install the prerequisites:** [T3 Code for Windows](https://github.com/pingdotgg/t3code/releases), the official [**Chat on Steroids desktop app**](https://github.com/totec448-spec/chat-on-steroids/releases), and [Node.js 24+ with npm](https://nodejs.org/en/download). Open T3 once; sign in to CoS and enable its local control API and actions.
+1. **Install the prerequisites:** [T3 Code for Windows](https://github.com/pingdotgg/t3code/releases), the official [**Chat on Steroids desktop app**](https://github.com/totec448-spec/chat-on-steroids/releases), and [Node.js 26.12.1+ (Node 26) with npm](https://nodejs.org/en/download). Open T3 once; sign in to CoS and enable its local control API and actions.
 2. **Extract the whole ZIP.** Open the extracted folder.
 3. **Double-click `Install.cmd`.** Follow the guided installer: system check → preferences → installation → finish.
 4. **Open T3 Code.** Refresh the Providers screen if needed, choose **Chat on Steroids** from the provider/model picker, and try a new chat.
@@ -116,7 +116,7 @@ Open the installed T3 desktop application at least once. The wizard looks for th
 <details>
 <summary><strong>Node.js or npm is missing</strong></summary>
 
-Install Node.js 24 or newer including npm from [nodejs.org](https://nodejs.org/en/download), then reopen the wizard. It uses your normal `node.exe` on PATH instead of a machine-specific bundled runtime.
+Install Node.js 26.12.1 or a later Node 26 patch including npm from [nodejs.org](https://nodejs.org/en/download), then reopen the wizard. It uses your normal `node.exe` on PATH instead of a machine-specific bundled runtime.
 
 </details>
 

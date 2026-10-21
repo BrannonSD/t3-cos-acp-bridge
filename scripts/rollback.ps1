@@ -22,8 +22,10 @@ if (-not $NodePath) {
     if ($found) { $NodePath = $found.Source }
   }
 }
-if (-not $NodePath) { throw 'Node.js 24 or later is required. Install Node.js or pass -NodePath.' }
+if (-not $NodePath) { throw 'Node.js 26.12.1 or a later Node 26 patch is required. Install Node.js or pass -NodePath.' }
 $node = (Resolve-Path -LiteralPath $NodePath).Path
+$nodeVersion = & $node -p 'process.versions.node'
+if ([version]$nodeVersion -lt [version]'26.12.1' -or ([version]$nodeVersion).Major -ne 26) { throw 'Rollback requires patched Node 26.12.1 or a later Node 26 patch.' }
 $tools = Join-Path $PSScriptRoot 'release-tools.mjs'
 if (-not (Test-Path -LiteralPath (Join-Path $release 'release-manifest.json'))) { throw 'This older release has no verified rollback manifest. It cannot be selected automatically.' }
 $database = Join-Path $InstallRoot 'state/state.sqlite'
