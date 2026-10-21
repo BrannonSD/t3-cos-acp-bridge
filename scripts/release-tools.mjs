@@ -25,12 +25,14 @@ async function inventory(root, relative = '') {
 export async function createManifest(directory, revision, nodePath) {
   if (!/^[0-9a-f]{7,40}$/.test(revision)) throw new Error('A committed source revision is required');
   const pkg = JSON.parse(await readFile(path.join(directory, 'package.json'), 'utf8'));
+  const nodeMajor = Number(String(pkg.engines?.node ?? '').match(/\d+/)?.[0]);
+  if (!Number.isInteger(nodeMajor) || nodeMajor < 1) throw new Error('package.json must declare a supported Node major');
   const manifest = {
     schema: 1,
     package: pkg.name,
     version: pkg.version,
     revision,
-    nodeMajor: 24,
+    nodeMajor,
     nodeSha256: sha256(await readFile(nodePath)),
     stateSchema: { min: 0, max: 1 },
     controlProtocols: [1],
